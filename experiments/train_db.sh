@@ -1,0 +1,14 @@
+accelerate launch --num_cpu_threads_per_process 1 train_db.py \
+    --pretrained_model_name_or_path="/data/code/stable-diffusion-webui/models/Stable-diffusion/realisticVisionV51_v51VAE.safetensors" \
+    --dataset_config="/data/code/sd-train/experiments/config.toml" \
+    --output_dir="/data/sample-train-output" \
+    --output_name="fashion-patterns" \
+    --save_model_as="safetensors" \
+    --prior_loss_weight=1.0 \
+    --max_train_steps=1600 \
+    --learning_rate=1e-6 \
+    --optimizer_type="AdamW8bit" \
+    --xformers \
+    --mixed_precision="fp16" \
+    --cache_latents \
+    --gradient_checkpointing \

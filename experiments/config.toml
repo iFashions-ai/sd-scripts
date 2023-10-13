@@ -1,0 +1,11 @@
+[general]
+enable_bucket = true # Whether to use Aspect Ratio Bucketing
+
+[[datasets]]
+resolution = 512 # Training resolution
+batch_size = 4   # Batch size
+
+[[datasets.subsets]]
+image_dir = '/data/fashion-dataset/patterns/dataset' # Specify the folder containing the training images
+caption_extension = '.caption'                     # Caption file extension; change this if using .txt
+num_repeats = 10                                   # Number of repetitions for training images
