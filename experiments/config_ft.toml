@@ -9,4 +9,4 @@ batch_size = 6   # Batch size
 
 [[datasets.subsets]]
 image_dir = '/data/fashion-dataset/styles/dataset'       # Specify the folder containing the training images
-metadata_file = '/data/fashion-dataset/styles/meta_50k_noperson_filtered.json' # Metadata file name
+metadata_file = '/data/fashion-dataset/styles/meta_100k_noperson_filtered.json' # Metadata file name
