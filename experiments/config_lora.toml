@@ -1,0 +1,15 @@
+[general]
+enable_bucket = true   # Whether to use Aspect Ratio Bucketing
+shuffle_caption = true
+keep_tokens = 1
+
+[[datasets]]
+resolution = 1024 # Training resolution
+batch_size = 4    # Batch size
+
+[[datasets.subsets]]
+# image_dir = '/data/fashion-dataset/styles/dataset_100k/' # Specify the folder containing the training images
+# caption_extension = '.caption'                           # Caption file extension; change this if using .txt
+# num_repeats = 1                                          # Number of repetitions for training images
+image_dir = '/data/fashion-dataset/styles/dataset'       # Specify the folder containing the training images
+metadata_file = '/data/fashion-dataset/styles/meta_100k_noperson_filtered.json' # Metadata file name

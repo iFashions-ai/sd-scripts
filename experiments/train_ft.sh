@@ -11,7 +11,6 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py \
     --logging_dir=$OUTPUT_DIR/logs \
     --log_with="tensorboard" \
     --dataset_config=$DATASET_CONFIG \
-    --save_precision="float" \
     --save_model_as=safetensors \
     --save_every_n_epochs=2 \
     --learning_rate=5e-6 \
