@@ -4,9 +4,9 @@ shuffle_caption = true
 keep_tokens = 1
 
 [[datasets]]
-resolution = 640 # Training resolution
-batch_size = 6   # Batch size
+resolution = 768 # Training resolution
+batch_size = 4   # Batch size
 
 [[datasets.subsets]]
 image_dir = '/data/fashion-dataset/styles/dataset'       # Specify the folder containing the training images
-metadata_file = '/data/fashion-dataset/styles/meta_100k_noperson_filtered.json' # Metadata file name
+metadata_file = '/data/fashion-dataset/styles/meta_280k_deduplicated_nocloseup.json' # Metadata file name
