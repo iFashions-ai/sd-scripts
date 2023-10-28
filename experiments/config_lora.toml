@@ -12,4 +12,4 @@ batch_size = 4    # Batch size
 # caption_extension = '.caption'                           # Caption file extension; change this if using .txt
 # num_repeats = 1                                          # Number of repetitions for training images
 image_dir = '/data/fashion-dataset/styles/dataset'       # Specify the folder containing the training images
-metadata_file = '/data/fashion-dataset/styles/meta_100k_noperson_filtered.json' # Metadata file name
+metadata_file = '/data/fashion-dataset/styles/meta_72k_deduplicated_onlygarment.json' # Metadata file name

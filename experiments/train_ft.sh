@@ -1,8 +1,8 @@
-# export PRETRAINED_MODEL="/data/code/stable-diffusion-webui/models/Stable-diffusion/dreamshaper_8.safetensors"
-export PRETRAINED_MODEL="/data/code/stable-diffusion-webui/models/Stable-diffusion/realisticVisionV51_v51VAE.safetensors"
+export PRETRAINED_MODEL="/data/code/stable-diffusion-webui/models/Stable-diffusion/dreamshaper_8.safetensors"
+# export PRETRAINED_MODEL="/data/code/stable-diffusion-webui/models/Stable-diffusion/realisticVisionV51_v51VAE.safetensors"
 export DATASET_CONFIG="/data/code/sd-scripts/experiments/config_ft.toml"
-export OUTPUT_DIR="/data/train-output/style/280kdata_20ksteps_b28_filtered"
-export OUTPUT_NAME="fashion-styles_280kdata_20ksteps_b28_filtered"
+export OUTPUT_DIR="/data/train-output/style/280kdata_20ksteps_b16_filtered"
+export OUTPUT_NAME="fashion-styles_280kdata_20ksteps_b16_filtered_dreamshaper8"
 
 accelerate launch --num_cpu_threads_per_process 1 fine_tune.py \
     --pretrained_model_name_or_path=$PRETRAINED_MODEL \
@@ -15,7 +15,7 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py \
     --save_every_n_steps=10000 \
     --learning_rate=5e-6 \
     --max_train_steps=20000 \
-    --gradient_accumulation_steps=7 \
+    --gradient_accumulation_steps=4 \
     --use_8bit_adam \
     --xformers \
     --gradient_checkpointing \
