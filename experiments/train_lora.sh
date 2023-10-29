@@ -1,7 +1,7 @@
 export PRETRAINED_MODEL="/data/code/stable-diffusion-webui/models/Stable-diffusion/SDXL/sd_xl_base_1.0.safetensors"
 export DATASET_CONFIG="/data/code/sd-scripts/experiments/config_lora.toml"
-export OUTPUT_DIR="/data/train-output/style/SDXL_310k_LoRA_dim8"
-export OUTPUT_NAME="fashion-styles_310kdata_b16_lora"
+export OUTPUT_DIR="/data/train-output/style/SDXL_72k_LoRA_dim16"
+export OUTPUT_NAME="fashion-styles_72kdata_b16_lora"
 
 accelerate launch --num_cpu_threads_per_process 1 sdxl_train_network.py \
     --pretrained_model_name_or_path=$PRETRAINED_MODEL \
@@ -22,9 +22,9 @@ accelerate launch --num_cpu_threads_per_process 1 sdxl_train_network.py \
     --xformers \
     --mixed_precision="fp16" \
     --gradient_checkpointing \
-    --save_every_n_steps=500 \
+    --save_every_n_steps=1000 \
     --network_module=networks.lora \
-    --network_dim=8 \
+    --network_dim=16 \
     --network_alpha=1 \
     --network_train_unet_only \
     --no_half_vae \
