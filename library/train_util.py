@@ -1140,16 +1140,22 @@ class BaseDataset(torch.utils.data.Dataset):
                 else:
                     if face_cx > 0:  # 顔位置情報あり
                         img = self.crop_target(subset, img, face_cx, face_cy, face_w, face_h)
+                        crop_ltrb = (0, 0, 0, 0)
                     elif im_h > self.height or im_w > self.width:
                         assert (
                             subset.random_crop
                         ), f"image too large, but cropping and bucketing are disabled / 画像サイズが大きいのでface_crop_aug_rangeかrandom_crop、またはbucketを有効にしてください: {image_info.absolute_path}"
+                        crop_ltrb = [0, 0, im_w, im_h]
                         if im_h > self.height:
                             p = random.randint(0, im_h - self.height)
                             img = img[p : p + self.height]
+                            crop_ltrb[1] = p
+                            crop_ltrb[3] = p + self.height
                         if im_w > self.width:
                             p = random.randint(0, im_w - self.width)
                             img = img[:, p : p + self.width]
+                            crop_ltrb[0] = p
+                            crop_ltrb[2] = p + self.width
 
                     im_h, im_w = img.shape[0:2]
                     assert (
@@ -1157,7 +1163,6 @@ class BaseDataset(torch.utils.data.Dataset):
                     ), f"image size is small / 画像サイズが小さいようです: {image_info.absolute_path}"
 
                     original_size = [im_w, im_h]
-                    crop_ltrb = (0, 0, 0, 0)
 
                 # augmentation
                 aug = self.aug_helper.get_augmentor(subset.color_aug)
@@ -1271,9 +1276,7 @@ class BaseDataset(torch.utils.data.Dataset):
         example["crop_top_lefts"] = torch.stack([torch.LongTensor(x) for x in crop_top_lefts])
         example["target_sizes_hw"] = torch.stack([torch.LongTensor(x) for x in target_sizes_hw])
         example["flippeds"] = flippeds
-
-        if self.debug_dataset:
-            example["image_keys"] = bucket[image_index : image_index + self.batch_size]
+        example["image_keys"] = bucket[image_index : image_index + self.batch_size]
         return example
 
     def get_item_for_caching(self, bucket, bucket_batch_size, image_index):
@@ -2198,21 +2201,26 @@ def trim_and_resize_if_required(
 
     image_height, image_width = image.shape[0:2]
 
+    crop_ltrb = [0, 0, image_width, image_height]
     if image_width > reso[0]:
         trim_size = image_width - reso[0]
         p = trim_size // 2 if not random_crop else random.randint(0, trim_size)
         # print("w", trim_size, p)
         image = image[:, p : p + reso[0]]
+        crop_ltrb[0] = p
+        crop_ltrb[2] = p + reso[0]
     if image_height > reso[1]:
         trim_size = image_height - reso[1]
         p = trim_size // 2 if not random_crop else random.randint(0, trim_size)
         # print("h", trim_size, p)
         image = image[p : p + reso[1]]
+        crop_ltrb[1] = p
+        crop_ltrb[3] = p + reso[1]
 
     # random cropの場合のcropされた値をどうcrop left/topに反映するべきか全くアイデアがない
     # I have no idea how to reflect the cropped value in crop left/top in the case of random crop
 
-    crop_ltrb = BucketManager.get_crop_ltrb(reso, original_size)
+    # crop_ltrb = BucketManager.get_crop_ltrb(reso, original_size)
 
     assert image.shape[0] == reso[1] and image.shape[1] == reso[0], f"internal error, illegal trimmed size: {image.shape}, {reso}"
     return image, original_size, crop_ltrb

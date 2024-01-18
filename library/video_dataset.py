@@ -1,4 +1,9 @@
 import os
+import cv2
+from PIL import Image
+
+import numpy as np
+import torch
 from library.train_util import BaseDataset, FineTuningSubset, ImageInfo, BucketManager
 from dataclasses import dataclass
 from typing import Tuple, Sequence
@@ -62,7 +67,6 @@ class VideoInpaintingDataset(BaseDataset):
                     metadata = [DataUnit(**json.loads(line)) for line in f]
             else:
                 raise ValueError(f"no metadata: {subset.metadata_file}")
-            self.metadata = metadata
 
             if len(metadata) < 1:
                 print(
@@ -71,8 +75,10 @@ class VideoInpaintingDataset(BaseDataset):
                 continue
 
             tags_list = []
+            self.key2metadata = {}
             for md in metadata:
                 image_key = md.image
+                self.key2metadata[image_key] = md
                 abs_path = None
                 if os.path.exists(image_key):
                     abs_path = image_key
@@ -178,3 +184,70 @@ class VideoInpaintingDataset(BaseDataset):
             npz_file_flip = None
 
         return npz_file_norm, npz_file_flip
+
+    def __getitem__(self, index):
+        sample = super().__getitem__(index)
+
+        # add mask, prev_image, prev_mask
+        masks = []
+        prev_images = []
+        prev_masks = []
+        for i, image_key in enumerate(sample["image_keys"]):
+            image_info = self.image_data[image_key]
+            metadata: DataUnit = self.key2metadata[image_key]
+            crop_top_left = sample["crop_top_lefts"][i]
+            target_size = sample["images"][i].shape[2:0:-1]
+            flipped = sample["flippeds"][i]
+
+            # mask
+            mask = self.read_mask(*metadata.mask)
+            mask_crop = self.resize_and_crop(
+                mask, flipped, image_info.resized_size, crop_top_left, target_size
+            )
+            masks.append(torch.from_numpy(mask_crop))
+
+            # prev_image
+            prev_image = np.array(Image.open(metadata.prev_image).convert("RGB"))
+            prev_image_crop = self.resize_and_crop(
+                prev_image, flipped, image_info.resized_size, crop_top_left, target_size
+            )
+            prev_image_crop = self.image_transforms(prev_image_crop)
+            prev_images.append(prev_image_crop)
+
+            # prev_mask
+            prev_mask = self.read_mask(*metadata.prev_mask)
+            prev_mask_crop = self.resize_and_crop(
+                prev_mask, flipped, image_info.resized_size, crop_top_left, target_size
+            )
+            prev_masks.append(torch.from_numpy(prev_mask_crop))
+
+        sample["masks"] = torch.stack(masks)
+        sample["prev_images"] = (
+            torch.stack(prev_images).to(memory_format=torch.contiguous_format).float()
+        )
+        sample["prev_masks"] = torch.stack(prev_masks)
+        return sample
+
+    @staticmethod
+    def resize_and_crop(
+        image: np.ndarray, flipped: bool, resized_size, crop_top_left, target_size
+    ):
+        original_size = image.shape[1::-1]
+        if original_size != resized_size:
+            image = cv2.resize(image, resized_size, interpolation=cv2.INTER_AREA)
+        if flipped:
+            image = image[:, ::-1]
+
+        image = image[
+            crop_top_left[1] : crop_top_left[1] + target_size[1],
+            crop_top_left[0] : crop_top_left[0] + target_size[0],
+        ]
+        return np.ascontiguousarray(image)
+
+    @staticmethod
+    def read_mask(filename, index):
+        mask = np.array(Image.open(filename).convert("L"))
+        mask = (mask == index).astype(np.uint8) * 255
+
+        # TODO: expand mask
+        return mask
