@@ -39,6 +39,7 @@ from .train_util import (
   ControlNetDataset,
   DatasetGroup,
 )
+from .video_dataset import VideoInpaintingDataset
 
 
 def add_config_arguments(parser: argparse.ArgumentParser):
@@ -124,6 +125,7 @@ class SubsetBlueprint:
 class DatasetBlueprint:
   is_dreambooth: bool
   is_controlnet: bool
+  is_video_inpainting: bool
   params: Union[DreamBoothDatasetParams, FineTuningDatasetParams]
   subsets: Sequence[SubsetBlueprint]
 
@@ -370,6 +372,7 @@ class BlueprintGenerator:
       subsets = dataset_config.get("subsets", [])
       is_dreambooth = all(["metadata_file" not in subset for subset in subsets])
       is_controlnet = all(["conditioning_data_dir" in subset for subset in subsets])
+      is_video_inpainting = not is_dreambooth and any([subset["metadata_file"].endswith("jsonl") for subset in subsets])
       if is_controlnet:
         subset_params_klass = ControlNetSubsetParams
         dataset_params_klass = ControlNetDatasetParams
@@ -388,7 +391,7 @@ class BlueprintGenerator:
 
       params = self.generate_params_by_fallbacks(dataset_params_klass,
                                                  [dataset_config, general_config, argparse_config, runtime_params])
-      dataset_blueprints.append(DatasetBlueprint(is_dreambooth, is_controlnet, params, subset_blueprints))
+      dataset_blueprints.append(DatasetBlueprint(is_dreambooth, is_controlnet, is_video_inpainting, params=params, subsets=subset_blueprints))
 
     dataset_group_blueprint = DatasetGroupBlueprint(dataset_blueprints)
 
@@ -425,6 +428,9 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
     elif dataset_blueprint.is_dreambooth:
       subset_klass = DreamBoothSubset
       dataset_klass = DreamBoothDataset
+    elif dataset_blueprint.is_video_inpainting:
+      subset_klass = FineTuningSubset
+      dataset_klass = VideoInpaintingDataset
     else:
       subset_klass = FineTuningSubset
       dataset_klass = FineTuningDataset
