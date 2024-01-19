@@ -1,6 +1,14 @@
+from typing import Any, Dict, Union
+import numpy as np
 import torch
 import torch.nn as nn
 from diffusers import AutoencoderKL
+from PIL import Image
+
+from library.sdxl_lpw_stable_diffusion import (
+    SdxlStableDiffusionLongPromptWeightingPipeline,
+    preprocess_image,
+)
 
 
 class VideoInpaintingPatch(nn.Module):
@@ -49,3 +57,82 @@ class VideoInpaintingPatch(nn.Module):
         # zero initialization
         nn.init.zeros_(self.head_curr.weight)
         nn.init.zeros_(self.head_prev.weight)
+
+
+class UnetPatched:
+    def __init__(self, unet, input_block_addons: Dict[int, torch.Tensor]):
+        self.unet = unet
+        self.dtype = self.unet.dtype
+        self.in_channels = self.unet.in_channels
+
+        self.input_block_addons = input_block_addons
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.unet(*args, **kwds, input_block_addons=self.input_block_addons)
+
+
+class VideoInpaintingPatchPipeline(SdxlStableDiffusionLongPromptWeightingPipeline):
+    def __init__(self, *args, inpainting_head: VideoInpaintingPatch, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inpainting_head = inpainting_head
+        self.original_unet = self.unet
+
+    def __call__(
+        self,
+        *args,
+        image: Union[torch.FloatTensor, Image.Image],
+        mask_image: Union[torch.FloatTensor, Image.Image],
+        prev_image: Union[torch.FloatTensor, Image.Image],
+        prev_mask: Union[torch.FloatTensor, Image.Image],
+        **kwargs
+    ):
+        dtype = self.unet.dtype
+
+        def preprocess_mask(mask: Image.Image, target_size):
+            mask = mask.resize(target_size, resample=Image.NEAREST)
+            mask = np.array(mask.convert("L"))
+            mask = (mask > 0).astype(np.uint8) * 255
+            return torch.from_numpy(mask[None])
+
+        def convert_mask_for_pipeline(mask: torch.Tensor):
+            mask = nn.functional.max_pool2d(
+                mask, (self.vae_scale_factor, self.vae_scale_factor)
+            )
+            mask = (mask[0] > 0).to(mask.dtype)
+            mask = torch.tile(mask, (4, 1, 1))[None]
+            mask = 1 - mask  # repaint white, keep black
+            return mask
+
+        # preprocess image and mask
+        if isinstance(image, Image.Image):
+            image = preprocess_image(image)
+        if isinstance(prev_image, Image.Image):
+            prev_image = preprocess_image(prev_image)
+        image_h, image_w = image.shape[-2:]
+        image_wh = (image_w, image_h)
+
+        if isinstance(mask_image, Image.Image):
+            mask_image = preprocess_mask(mask_image, target_size=image_wh)
+        if isinstance(prev_mask, Image.Image):
+            prev_mask = preprocess_mask(prev_mask, target_size=image_wh)
+
+        image = image.to(device=self.device, dtype=dtype)
+        prev_image = prev_image.to(device=self.device, dtype=dtype)
+        mask_image = mask_image.to(device=self.device, dtype=dtype)
+        prev_mask = prev_mask.to(device=self.device, dtype=dtype)
+
+        x_curr, x_prev = self.inpainting_head(
+            self.vae, image, mask_image, prev_image, prev_mask
+        )
+
+        try:
+            self.unet = UnetPatched(
+                self.original_unet, input_block_addons={0: x_curr + x_prev}
+            )
+            latents = super().__call__(
+                *args,
+                **kwargs, image=image, mask_image=convert_mask_for_pipeline(mask_image)
+            )
+        finally:
+            self.unet = self.original_unet
+        return latents

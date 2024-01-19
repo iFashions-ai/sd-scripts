@@ -134,8 +134,10 @@ class NetworkTrainer:
             if param.grad is not None:
                 param.grad = accelerator.reduce(param.grad, reduction="mean")
 
-    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
-        train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet)
+    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, inpainting_head):
+        if not args.is_video_inpainting:
+            inpainting_head = None
+        train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, inpainting_head=inpainting_head)
 
     def train(self, args):
         session_id = random.randint(0, 2**32)
@@ -730,7 +732,7 @@ class NetworkTrainer:
                 os.remove(old_ckpt_file)
 
         # For --sample_at_first
-        self.sample_images(accelerator, args, 0, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
+        self.sample_images(accelerator, args, 0, global_step, accelerator.device, vae, tokenizer, text_encoder, unet, inpainting_head)
 
         # training loop
         for epoch in range(num_train_epochs):
@@ -838,7 +840,7 @@ class NetworkTrainer:
                     progress_bar.update(1)
                     global_step += 1
 
-                    self.sample_images(accelerator, args, None, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
+                    self.sample_images(accelerator, args, None, global_step, accelerator.device, vae, tokenizer, text_encoder, unet, inpainting_head)
 
                     # 指定ステップごとにモデルを保存
                     if args.save_every_n_steps is not None and global_step % args.save_every_n_steps == 0:
@@ -892,7 +894,7 @@ class NetworkTrainer:
                     if args.save_state:
                         train_util.save_and_remove_state_on_epoch_end(args, accelerator, epoch + 1)
 
-            self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
+            self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizer, text_encoder, unet, inpainting_head)
 
             # end of epoch
 
@@ -932,7 +934,7 @@ def setup_parser() -> argparse.ArgumentParser:
         choices=[None, "ckpt", "pt", "safetensors"],
         help="format to save the model (default is .safetensors) / モデル保存時の形式（デフォルトはsafetensors）",
     )
-
+    parser.add_argument("--is_video_inpainting", default=False, action="store_true", help="model is video inpainting model")
     parser.add_argument("--unet_lr", type=float, default=None, help="learning rate for U-Net / U-Netの学習率")
     parser.add_argument("--text_encoder_lr", type=float, default=None, help="learning rate for Text Encoder / Text Encoderの学習率")
 

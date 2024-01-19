@@ -173,8 +173,10 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
         noise_pred = unet(noisy_latents, timesteps, text_embedding, vector_embedding, input_block_addons=input_block_addons)
         return noise_pred
 
-    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
-        sdxl_train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet)
+    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, inpainting_head):
+        if not args.is_video_inpainting:
+            inpainting_head = None
+        sdxl_train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, inpainting_head=inpainting_head)
 
 
 def setup_parser() -> argparse.ArgumentParser:

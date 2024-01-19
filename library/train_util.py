@@ -64,6 +64,7 @@ from library.lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipel
 import library.model_util as model_util
 import library.huggingface_util as huggingface_util
 import library.sai_model_spec as sai_model_spec
+from library.video_inpainting_patch import VideoInpaintingPatchPipeline
 
 # from library.attention_processors import FlashAttnProcessor
 # from library.hypernetwork import replace_attentions_for_hypernetwork
@@ -4568,6 +4569,8 @@ def get_my_scheduler(
 
 
 def sample_images(*args, **kwargs):
+    if kwargs.get("inpainting_head") is not None:
+        raise NotImplementedError("Video inpainting only supports SDXL")
     return sample_images_common(StableDiffusionLongPromptWeightingPipeline, *args, **kwargs)
 
 
@@ -4727,6 +4730,7 @@ def sample_images_common(
             assert isinstance(prompt_dict, dict)
             negative_prompt = prompt_dict.get("negative_prompt")
             sample_steps = prompt_dict.get("sample_steps", 30)
+            strength = prompt_dict.get("strength", 0.75)
             width = prompt_dict.get("width", 512)
             height = prompt_dict.get("height", 512)
             scale = prompt_dict.get("scale", 7.5)
@@ -4734,6 +4738,28 @@ def sample_images_common(
             controlnet_image = prompt_dict.get("controlnet_image")
             prompt: str = prompt_dict.get("prompt", "")
             sampler_name: str = prompt_dict.get("sample_sampler", args.sample_sampler)
+
+            image = prompt_dict.get("image")
+            if image is not None:
+                image = Image.open(image).convert("RGB").resize((width, height), Image.LANCZOS)
+            mask = prompt_dict.get("mask")
+            if mask is not None:
+                mask = Image.open(mask).convert("L").resize((width, height), Image.NEAREST)
+            images_dict = {
+                "image": image,
+                "mask_image": mask,
+            }
+            if isinstance(pipeline, VideoInpaintingPatchPipeline):
+                prev_image = prompt_dict.get("prev_image")
+                if prev_image is not None:
+                    prev_image = Image.open(prev_image).convert("RGB").resize((width, height), Image.LANCZOS)
+                prev_mask = prompt_dict.get("prev_mask")
+                if prev_mask is not None:
+                    prev_mask = Image.open(prev_mask).convert("L").resize((width, height), Image.NEAREST)
+                images_dict.update({
+                    "prev_image": prev_image,
+                    "prev_mask": prev_mask,
+                })
 
             if seed is not None:
                 torch.manual_seed(seed)
@@ -4764,6 +4790,7 @@ def sample_images_common(
             print(f"height: {height}")
             print(f"width: {width}")
             print(f"sample_steps: {sample_steps}")
+            print(f"strength: {strength}")
             print(f"scale: {scale}")
             print(f"sample_sampler: {sampler_name}")
             if seed is not None:
@@ -4775,9 +4802,11 @@ def sample_images_common(
                     width=width,
                     num_inference_steps=sample_steps,
                     guidance_scale=scale,
+                    strength=strength,
                     negative_prompt=negative_prompt,
                     controlnet=controlnet,
                     controlnet_image=controlnet_image,
+                    **images_dict,
                 )
 
             image = pipeline.latents_to_image(latents)[0]

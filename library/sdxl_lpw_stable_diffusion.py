@@ -759,7 +759,7 @@ class SdxlStableDiffusionLongPromptWeightingPipeline:
             return latents, None, None
         else:
             init_latent_dist = self.vae.encode(image).latent_dist
-            init_latents = init_latent_dist.sample(generator=generator)
+            init_latents = init_latent_dist.sample(generator=generator).to(dtype)
             init_latents = sdxl_model_util.VAE_SCALE_FACTOR * init_latents
             init_latents = torch.cat([init_latents] * batch_size, dim=0)
             init_latents_orig = init_latents
