@@ -1,4 +1,5 @@
 import argparse
+from typing import Dict
 import torch
 
 try:
@@ -152,7 +153,10 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
 
         return encoder_hidden_states1, encoder_hidden_states2, pool2
 
-    def call_unet(self, args, accelerator, unet, noisy_latents, timesteps, text_conds, batch, weight_dtype):
+    def call_unet(self, args, accelerator, unet, noisy_latents, timesteps, text_conds, batch, weight_dtype, input_block_addons: Dict[int, torch.Tensor] = None):
+        input_block_addons = input_block_addons or {}
+        for key in input_block_addons:
+            input_block_addons[key] = input_block_addons[key].to(weight_dtype)
         noisy_latents = noisy_latents.to(weight_dtype)  # TODO check why noisy_latents is not weight_dtype
 
         # get size embeddings
@@ -166,7 +170,7 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
         vector_embedding = torch.cat([pool2, embs], dim=1).to(weight_dtype)
         text_embedding = torch.cat([encoder_hidden_states1, encoder_hidden_states2], dim=2).to(weight_dtype)
 
-        noise_pred = unet(noisy_latents, timesteps, text_embedding, vector_embedding)
+        noise_pred = unet(noisy_latents, timesteps, text_embedding, vector_embedding, input_block_addons=input_block_addons)
         return noise_pred
 
     def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):

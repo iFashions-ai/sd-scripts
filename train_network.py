@@ -46,6 +46,7 @@ from library.custom_train_functions import (
     add_v_prediction_like_loss,
     apply_debiased_estimation,
 )
+from library.video_inpainting_patch import VideoInpaintingPatch
 
 
 class NetworkTrainer:
@@ -232,6 +233,10 @@ class NetworkTrainer:
 
         # モデルを読み込む
         model_version, text_encoder, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
+        
+        # load inpainting head
+        inpainting_head = VideoInpaintingPatch(self.vae_scale_factor).to(accelerator.device)
+        inpainting_head.requires_grad_(True)
 
         # text_encoder is List[CLIPTextModel] or CLIPTextModel
         text_encoders = text_encoder if isinstance(text_encoder, list) else [text_encoder]
@@ -344,6 +349,7 @@ class NetworkTrainer:
                 "Deprecated: use prepare_optimizer_params(text_encoder_lr, unet_lr, learning_rate) instead of prepare_optimizer_params(text_encoder_lr, unet_lr)"
             )
             trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
+        trainable_params.append({"params": list(inpainting_head.parameters()), "lr": args.unet_lr})
 
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
@@ -737,7 +743,7 @@ class NetworkTrainer:
 
             for step, batch in enumerate(train_dataloader):
                 current_step.value = global_step
-                with accelerator.accumulate(network):
+                with accelerator.accumulate([network, inpainting_head]):
                     on_step_start(text_encoder, unet)
 
                     with torch.no_grad():
@@ -753,6 +759,10 @@ class NetworkTrainer:
                                 latents = torch.nan_to_num(latents, 0, out=latents)
                         latents = latents * self.vae_scale_factor
                     b_size = latents.shape[0]
+                    
+                    # input block patch
+                    x_curr, x_prev = inpainting_head(vae, batch["images"], batch["masks"], batch["prev_images"], batch["prev_masks"])
+                    input_block_addons = {0: x_prev + x_curr}
 
                     with torch.set_grad_enabled(train_text_encoder), accelerator.autocast():
                         # Get the text embedding for conditioning
@@ -779,7 +789,7 @@ class NetworkTrainer:
                     # Predict the noise residual
                     with accelerator.autocast():
                         noise_pred = self.call_unet(
-                            args, accelerator, unet, noisy_latents, timesteps, text_encoder_conds, batch, weight_dtype
+                            args, accelerator, unet, noisy_latents, timesteps, text_encoder_conds, batch, weight_dtype, input_block_addons=input_block_addons
                         )
 
                     if args.v_parameterization:

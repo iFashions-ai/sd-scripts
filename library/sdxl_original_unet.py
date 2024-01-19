@@ -24,7 +24,7 @@
 
 import math
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, Callable, Dict, Optional
 import torch
 import torch.utils.checkpoint
 from torch import nn
@@ -1066,7 +1066,8 @@ class SdxlUNet2DConditionModel(nn.Module):
 
     # endregion
 
-    def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
+    def forward(self, x, timesteps=None, context=None, y=None, input_block_addons: Dict[int, torch.Tensor] = None, **kwargs):
+        input_block_addons = input_block_addons or {}
         # broadcast timesteps to batch dimension
         timesteps = timesteps.expand(x.shape[0])
 
@@ -1095,8 +1096,11 @@ class SdxlUNet2DConditionModel(nn.Module):
         # h = x.type(self.dtype)
         h = x
 
-        for module in self.input_blocks:
+        for idx, module in enumerate(self.input_blocks):
             h = call_module(module, h, emb, context)
+            if idx in input_block_addons:
+                # Patch the input
+                h = h + input_block_addons[idx]
             hs.append(h)
 
         h = call_module(self.middle_block, h, emb, context)
