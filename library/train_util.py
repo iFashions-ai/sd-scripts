@@ -64,8 +64,6 @@ from library.lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipel
 import library.model_util as model_util
 import library.huggingface_util as huggingface_util
 import library.sai_model_spec as sai_model_spec
-from library.video_inpainting_patch import VideoInpaintingPatchPipeline
-
 # from library.attention_processors import FlashAttnProcessor
 # from library.hypernetwork import replace_attentions_for_hypernetwork
 from library.original_unet import UNet2DConditionModel
@@ -3315,7 +3313,7 @@ def add_sd_saving_arguments(parser: argparse.ArgumentParser):
     )
 
 
-def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentParser):
+def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentParser, argv: List = None):
     if not args.config_file:
         return args
 
@@ -3376,7 +3374,7 @@ def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentPar
             ignore_nesting_dict[key] = value
 
     config_args = argparse.Namespace(**ignore_nesting_dict)
-    args = parser.parse_args(namespace=config_args)
+    args = parser.parse_args(namespace=config_args, args=argv)
     args.config_file = os.path.splitext(args.config_file)[0]
     print(args.config_file)
 
@@ -4749,6 +4747,9 @@ def sample_images_common(
                 "image": image,
                 "mask_image": mask,
             }
+            
+            from library.video_inpainting_patch import VideoInpaintingPatchPipeline
+            
             if isinstance(pipeline, VideoInpaintingPatchPipeline):
                 prev_image = prompt_dict.get("prev_image")
                 if prev_image is not None:

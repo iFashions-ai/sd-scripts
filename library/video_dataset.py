@@ -239,9 +239,13 @@ class VideoInpaintingDataset(BaseDataset):
             image = image[:, ::-1]
 
         image = image[
-            crop_top_left[1] : crop_top_left[1] + target_size[1],
-            crop_top_left[0] : crop_top_left[0] + target_size[0],
+            crop_top_left[0] : crop_top_left[0] + target_size[1],
+            crop_top_left[1] : crop_top_left[1] + target_size[0],
         ]
+        if image.shape[0] != target_size[1] or image.shape[1] != target_size[0]:
+            raise ValueError(
+                f"image.shape: {image.shape}, target_size: {target_size}, crop_top_left: {crop_top_left}"
+            )
         return np.ascontiguousarray(image)
 
     @staticmethod
