@@ -11,6 +11,7 @@ import re
 import shutil
 import time
 from typing import (
+    Any,
     Dict,
     List,
     NamedTuple,
@@ -4640,6 +4641,7 @@ def sample_images_common(
     unet,
     prompt_replacement=None,
     controlnet=None,
+    prompts_data: Dict[str, Any] = None
 ):
     """
     StableDiffusionLongPromptWeightingPipelineの改造版を使うようにしたので、clip skipおよびプロンプトの重みづけに対応した
@@ -4678,7 +4680,9 @@ def sample_images_common(
     # with open(args.sample_prompts, "rt", encoding="utf-8") as f:
     #     prompts = f.readlines()
 
-    if args.sample_prompts.endswith(".txt"):
+    if prompts_data is not None:
+        prompts = prompts_data
+    elif args.sample_prompts.endswith(".txt"):
         with open(args.sample_prompts, "r", encoding="utf-8") as f:
             lines = f.readlines()
         prompts = [line.strip() for line in lines if len(line.strip()) > 0 and line[0] != "#"]
@@ -4716,6 +4720,7 @@ def sample_images_common(
     rng_state = torch.get_rng_state()
     cuda_rng_state = torch.cuda.get_rng_state() if torch.cuda.is_available() else None
 
+    generated_image_files = []
     with torch.no_grad():
         # with accelerator.autocast():
         for i, prompt_dict in enumerate(prompts):
@@ -4820,6 +4825,7 @@ def sample_images_common(
             )
 
             image.save(os.path.join(save_dir, img_filename))
+            generated_image_files.append(os.path.join(save_dir, img_filename))
 
             # wandb有効時のみログを送信
             try:
@@ -4841,6 +4847,8 @@ def sample_images_common(
     if cuda_rng_state is not None:
         torch.cuda.set_rng_state(cuda_rng_state)
     vae.to(org_vae_device)
+
+    return generated_image_files
 
 
 # endregion
