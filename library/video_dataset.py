@@ -251,7 +251,7 @@ class VideoInpaintingDataset(BaseDataset):
     @classmethod
     def read_mask(cls, filename, index):
         mask = np.array(Image.open(filename).convert("L"))
-        return cls.enlarge_mask(mask, index)
+        return cls.enlarge_mask(mask, index, kscale=0)
 
     @classmethod
     def enlarge_mask(cls, mask, index, kscale=0.05):

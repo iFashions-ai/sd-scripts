@@ -104,7 +104,7 @@ class VideoInpaintingPatchPipeline(SdxlStableDiffusionLongPromptWeightingPipelin
                 a = max(int(np.sqrt(mask.shape[0] * mask.shape[1]) * kscale), 11)
                 return cv2.dilate(mask, np.ones((a, a), np.uint8))
 
-            mask = enlarge_mask(mask)
+            mask = enlarge_mask(mask, kscale=0)
 
             return torch.from_numpy(mask[None])
 
