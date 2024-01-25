@@ -4641,7 +4641,8 @@ def sample_images_common(
     unet,
     prompt_replacement=None,
     controlnet=None,
-    prompts_data: Dict[str, Any] = None
+    prompts_data: Dict[str, Any] = None,
+    verbose: bool = True,
 ):
     """
     StableDiffusionLongPromptWeightingPipelineの改造版を使うようにしたので、clip skipおよびプロンプトの重みづけに対応した
@@ -4660,7 +4661,8 @@ def sample_images_common(
             if steps % args.sample_every_n_steps != 0 or epoch is not None:  # steps is not divisible or end of epoch
                 return
 
-    print(f"\ngenerating sample images at step / サンプル画像生成 ステップ: {steps}")
+    if verbose:
+        print(f"\ngenerating sample images at step / サンプル画像生成 ステップ: {steps}")
     if not os.path.isfile(args.sample_prompts):
         print(f"No prompt file / プロンプトファイルがありません: {args.sample_prompts}")
         return
@@ -4791,16 +4793,17 @@ def sample_images_common(
 
             height = max(64, height - height % 8)  # round to divisible by 8
             width = max(64, width - width % 8)  # round to divisible by 8
-            print(f"prompt: {prompt}")
-            print(f"negative_prompt: {negative_prompt}")
-            print(f"height: {height}")
-            print(f"width: {width}")
-            print(f"sample_steps: {sample_steps}")
-            print(f"strength: {strength}")
-            print(f"scale: {scale}")
-            print(f"sample_sampler: {sampler_name}")
-            if seed is not None:
-                print(f"seed: {seed}")
+            if verbose:
+                print(f"prompt: {prompt}")
+                print(f"negative_prompt: {negative_prompt}")
+                print(f"height: {height}")
+                print(f"width: {width}")
+                print(f"sample_steps: {sample_steps}")
+                print(f"strength: {strength}")
+                print(f"scale: {scale}")
+                print(f"sample_sampler: {sampler_name}")
+                if seed is not None:
+                    print(f"seed: {seed}")
             with accelerator.autocast():
                 latents = pipeline(
                     prompt=prompt,

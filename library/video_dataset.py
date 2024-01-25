@@ -248,10 +248,15 @@ class VideoInpaintingDataset(BaseDataset):
             )
         return np.ascontiguousarray(image)
 
-    @staticmethod
-    def read_mask(filename, index):
+    @classmethod
+    def read_mask(cls, filename, index):
         mask = np.array(Image.open(filename).convert("L"))
-        mask = (mask == index).astype(np.uint8) * 255
+        return cls.enlarge_mask(mask, index)
 
-        # TODO: expand mask
-        return mask
+    @classmethod
+    def enlarge_mask(cls, mask, index, kscale=0.05):
+        mask = (mask == index).astype(np.uint8) * 255
+        if kscale <= 0:
+            return mask
+        a = max(int(np.sqrt(mask.shape[0] * mask.shape[1]) * kscale), 11)
+        return cv2.dilate(mask, np.ones((a, a), np.uint8))

@@ -1,4 +1,5 @@
 from typing import Any, Dict, Union
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -28,19 +29,22 @@ class VideoInpaintingPatch(nn.Module):
     def forward(self, vae: AutoencoderKL, image, mask, prev_image, prev_mask):
         # remove the image[mask] and prev_image[~prev_mask] parts
         mask = (mask > 0).to(image.dtype)[:, None]
-        latent, latent_mask = self.encode_vae(vae, image, mask)
+        latent, latent_mask = self.encode_vae(vae, image, mask, apply_mask=True)
 
         prev_mask = (prev_mask <= 0).to(prev_image.dtype)[:, None]
-        prev_latent, prev_latent_mask = self.encode_vae(vae, prev_image, prev_mask)
+        prev_latent, prev_latent_mask = self.encode_vae(
+            vae, prev_image, prev_mask, apply_mask=True
+        )
 
         prev_feat = self.head_prev(torch.cat([prev_latent, prev_latent_mask], dim=1))
         curr_feat = self.head_curr(torch.cat([latent, latent_mask], dim=1))
-        return curr_feat, prev_feat
+        return curr_feat + prev_feat
 
-    def encode_vae(self, vae: AutoencoderKL, image, mask):
+    def encode_vae(self, vae: AutoencoderKL, image, mask, apply_mask: bool):
         vae_dtype = next(vae.parameters()).dtype
         with torch.no_grad():
-            image = image * (1 - mask) + 0.5 * mask
+            if apply_mask:
+                image = image * (1 - mask) + 0.5 * mask
             latent = vae.encode(image.to(vae_dtype)).latent_dist.sample()
             if torch.any(torch.isnan(latent)):
                 latent = torch.nan_to_num(latent, 0, out=latent)
@@ -92,6 +96,16 @@ class VideoInpaintingPatchPipeline(SdxlStableDiffusionLongPromptWeightingPipelin
             mask = mask.resize(target_size, resample=Image.NEAREST)
             mask = np.array(mask.convert("L"))
             mask = (mask > 0).astype(np.uint8) * 255
+
+            # enlarge mask
+            def enlarge_mask(mask, kscale=0.05):
+                if kscale <= 0:
+                    return mask
+                a = max(int(np.sqrt(mask.shape[0] * mask.shape[1]) * kscale), 11)
+                return cv2.dilate(mask, np.ones((a, a), np.uint8))
+
+            mask = enlarge_mask(mask)
+
             return torch.from_numpy(mask[None])
 
         def convert_mask_for_pipeline(mask: torch.Tensor):
@@ -121,17 +135,19 @@ class VideoInpaintingPatchPipeline(SdxlStableDiffusionLongPromptWeightingPipelin
         mask_image = mask_image.to(device=self.device, dtype=dtype)
         prev_mask = prev_mask.to(device=self.device, dtype=dtype)
 
-        x_curr, x_prev = self.inpainting_head(
+        x_addons = self.inpainting_head(
             self.vae, image, mask_image, prev_image, prev_mask
         )
 
         try:
             self.unet = UnetPatched(
-                self.original_unet, input_block_addons={0: x_curr + x_prev}
+                self.original_unet, input_block_addons={0: x_addons}
             )
             latents = super().__call__(
                 *args,
-                **kwargs, image=image, mask_image=convert_mask_for_pipeline(mask_image)
+                **kwargs,
+                image=image,
+                mask_image=convert_mask_for_pipeline(mask_image)
             )
         finally:
             self.unet = self.original_unet

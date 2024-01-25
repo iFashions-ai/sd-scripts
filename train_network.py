@@ -772,8 +772,8 @@ class NetworkTrainer:
                     b_size = latents.shape[0]
                     
                     # input block patch
-                    x_curr, x_prev = inpainting_head(vae, batch["images"], batch["masks"], batch["prev_images"], batch["prev_masks"])
-                    input_block_addons = {0: x_prev + x_curr}
+                    x_addons = inpainting_head(vae, batch["images"], batch["masks"], batch["prev_images"], batch["prev_masks"])
+                    input_block_addons = {0: x_addons}
 
                     with torch.set_grad_enabled(train_text_encoder), accelerator.autocast():
                         # Get the text embedding for conditioning
